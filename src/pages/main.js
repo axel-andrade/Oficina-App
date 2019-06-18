@@ -1,8 +1,8 @@
 import React, { Component } from 'react';
-import { Text, View, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import NetInfo from "@react-native-community/netinfo";
+import { Text, View, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import api from '../services/api';
 import ModalDescription from '../components/modal';
+import Icon from 'react-native-vector-icons/FontAwesome5';
 
 export default class Main extends Component {
     static navigationOptions = {
@@ -11,7 +11,6 @@ export default class Main extends Component {
 
     state = {
         proposals: [],
-        isConnected: true,
         loading: false,
         modalVisible: false,
         description: '',
@@ -19,34 +18,22 @@ export default class Main extends Component {
     };
 
     componentDidMount() {
-
-        //verificando conexão com a internet
-        NetInfo.isConnected.addEventListener(
-            'change',
-            this._handleConnectivityChange
-        );
-        NetInfo.isConnected.fetch().done(
-            (isConnected) => { this.setState({ isConnected }); }
-        );
-
         //carrengando as propostas da api
         this.loadProposals();
     };
 
     loadProposals = async () => {
 
-        this.setState({ loading: true });
-
-        if (this.state.isConnected) {
-            await api.get('/').then(res => {
-                this.setState({ proposals: res.data, loading: false, error: false })
-            }).catch(error => {
-                this.setState({ loading: false, error: true });
-                alert(error.message)
-            });
-        }
-        else
-            alert("Sem conexão com a internet");
+        this.setState({ loading: true })
+        await api.get('/').then(res => {
+            this.setState({ proposals: res.data, loading: false, error: false })
+        }).catch(error => {
+            if (!error.status)
+                Alert.alert("Sem conexão com a internet");
+            else
+                Alert.alert(JSON.stringify(error.message));
+            this.setState({ loading: false, error: true });
+        });
     }
 
     renderItem = ({ item }) => (
@@ -69,37 +56,29 @@ export default class Main extends Component {
 
     )
 
-    componentWillUnmount() {
-        NetInfo.isConnected.removeEventListener(
-            'change',
-            this._handleConnectivityChange
-        );
-    }
-
-    _handleConnectivityChange = (isConnected) => {
-        this.setState({
-            isConnected,
-        });
-    };
 
     render() {
-        let { proposals, isConnected, loading, error } = this.state;
+        let { proposals, loading, error } = this.state;
         return (
             <View style={styles.container}>
                 {loading
                     ? <View style={styles.loading}>
                         <ActivityIndicator size="large" color="#6AA84F" />
                     </View>
-                    : proposals.length === 0 && isConnected && !loading && !error ?
+                    : proposals.length === 0 && !loading && !error ?
                         <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 20 }}>
                             <Text style={styles.title}>Ainda não existem propostas</Text>
                         </View>
-                        : <FlatList
-                            contentContainerStyle={styles.list}
-                            data={proposals}
-                            keyExtractor={item => item.id.toString()}
-                            renderItem={this.renderItem}
-                        />
+                        : error ?
+                            <TouchableOpacity style={styles.loading} onPress={() => this.loadProposals()}>
+                                <Icon style={{ paddingTop: 15 }} name="redo" size={40} color="#6AA84F" />
+                            </TouchableOpacity>
+                            : <FlatList
+                                contentContainerStyle={styles.list}
+                                data={proposals}
+                                keyExtractor={item => item.id.toString()}
+                                renderItem={this.renderItem}
+                            />
                 }
 
                 <ModalDescription
